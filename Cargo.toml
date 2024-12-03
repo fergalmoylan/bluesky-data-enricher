@@ -4,4 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+dotenv = "0.15"
+rdkafka = "0.37.0"
 rust-bert = "0.23.0"
+env_logger = "0.11.5"
+log = "0.4.22"
+serde = { version = "1.0.215", features = ["derive"] }
+tokio = { version = "1.0.0", features = ["rt", "rt-multi-thread", "macros"] }
+lazy_static = "1.5.0"
+prometheus = "0.13.4"
+futures = "0.3.31"
+serde_json = "1.0.133"
