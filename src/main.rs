@@ -1,16 +1,19 @@
 mod config;
 mod app_metrics;
 mod consumer;
+mod enricher;
+mod producer;
 
 use std::time::Duration;
 use dotenv::dotenv;
-use log::{info, warn};
+use log::info;
 use tokio::time;
 use crate::app_metrics::gather_metrics;
 use crate::config::Config;
+use crate::enricher::RustBertModels;
 
 #[tokio::main]
-async fn main() {
+async fn run(models: RustBertModels) {
     dotenv().ok();
     env_logger::init();
     let config = Config::from_env();
@@ -25,5 +28,11 @@ async fn main() {
         }
     });
     let consumer = consumer::initialise_consumer(&config);
-    consumer::consume_and_print(&config, consumer).await;
+    let producer = producer::initialise_producer(&config);
+    consumer::consume_records(&config, consumer, producer, &models).await;
+}
+
+fn main() {
+    let models = RustBertModels::new();
+    run(models);
 }

@@ -5,6 +5,7 @@ use std::env;
 pub struct Config {
     pub kafka_addresses: Vec<String>,
     pub kafka_topic: String,
+    pub output_topic: String,
 }
 
 impl Config {
@@ -18,10 +19,12 @@ impl Config {
             .collect();
 
         let kafka_topic = env::var("KAFKA_TOPIC").expect("KAFKA_TOPIC is not set");
+        let output_topic = env::var("OUTPUT_TOPIC").expect("KAFKA_TOPIC is not set");
 
         Config {
             kafka_addresses,
             kafka_topic,
+            output_topic,
         }
     }
 }

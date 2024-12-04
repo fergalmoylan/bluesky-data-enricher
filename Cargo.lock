@@ -181,6 +181,7 @@ dependencies = [
  "log",
  "prometheus",
  "rdkafka",
+ "regex",
  "rust-bert",
  "serde",
  "serde_json",

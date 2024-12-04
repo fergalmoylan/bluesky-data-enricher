@@ -1,12 +1,15 @@
-use log::{error, info};
+use log::info;
 use futures::stream::TryStreamExt;
-use log::__private_api::Value;
 use rdkafka::error::KafkaError;
-use rdkafka::{ClientConfig, Message};
+use rdkafka::ClientConfig;
+use rdkafka::config::RDKafkaLogLevel;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
-use rdkafka::consumer::{Consumer, DefaultConsumerContext, MessageStream};
+use rdkafka::consumer::Consumer;
+use rdkafka::producer::FutureProducer;
 use crate::app_metrics::KAFKA_LATENCY;
 use crate::config::Config;
+use crate::enricher::{EnrichedRecord, RustBertModels};
+use crate::producer;
 
 pub fn initialise_consumer(config: &Config) -> StreamConsumer {
     let binding = config.kafka_addresses.join(",");
@@ -21,34 +24,24 @@ pub fn initialise_consumer(config: &Config) -> StreamConsumer {
         .set("enable.auto.commit", "false")
         .set("statistics.interval.ms", "30000")
         .set("auto.offset.reset", "smallest")
+        .set_log_level(RDKafkaLogLevel::Error)
         .create()
         .expect("Consumer creation failed")
 }
 
-pub async fn consume_and_print(config: &Config, consumer: StreamConsumer) {
+pub async fn consume_records(config: &Config, consumer: StreamConsumer, producer: FutureProducer, models: &RustBertModels<'_>) {
     consumer
         .subscribe(&[&config.kafka_topic])
         .expect("Can't subscribe to specified topics");
 
     let consumer_stream = consumer.stream().try_for_each(|borrowed_message| {
+        let producer = producer.clone();
         async move {
             let owned_message = borrowed_message.detach();
-            tokio::spawn(async move {
-                let timer = KAFKA_LATENCY.start_timer();
-                if let Some(payload) = owned_message.payload() {
-                    match std::str::from_utf8(payload) {
-                        Ok(text) => {
-                            info!("Received message: {}", text);
-                        },
-                        Err(e) => {
-                            error!("Error decoding message payload: {}", e);
-                        },
-                    }
-                } else {
-                    info!("Received message with empty payload");
-                }
-                timer.observe_duration();
-            });
+            let timer = KAFKA_LATENCY.start_timer();
+            let enriched_record = EnrichedRecord::enrich_record(owned_message, models).unwrap();
+            producer::send_to_kafka(&producer, config, enriched_record).await;
+            timer.observe_duration();
             Ok::<(), KafkaError>(())
         }
     });
