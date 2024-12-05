@@ -5,7 +5,7 @@ use prometheus::register_histogram;
 use prometheus::{self, Histogram};
 
 lazy_static! {
-    pub static ref KAFKA_LATENCY: Histogram = register_histogram!(
+    pub static ref END_TO_END_LATENCY: Histogram = register_histogram!(
         "records_process_duration_seconds",
         "Time taken to process records from Kafka",
         vec![0.1, 1.0, 5.0]
@@ -14,8 +14,8 @@ lazy_static! {
 }
 
 pub async fn gather_metrics(prev_count: &f64, prev_time: &f64) -> (f64, f64) {
-    let counter = KAFKA_LATENCY.get_sample_count().into_f64();
-    let timer = KAFKA_LATENCY.get_sample_sum();
+    let counter = END_TO_END_LATENCY.get_sample_count().into_f64();
+    let timer = END_TO_END_LATENCY.get_sample_sum();
     let avg_latency = (timer - prev_time) / (counter - prev_count) * 1000.0;
     let tps = (counter - prev_count) / 10.0;
     info!(

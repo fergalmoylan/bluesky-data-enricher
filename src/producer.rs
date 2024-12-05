@@ -3,7 +3,8 @@ use log::error;
 use crate::config::Config;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::ClientConfig;
-use crate::app_metrics::KAFKA_LATENCY;
+use rdkafka::config::RDKafkaLogLevel;
+use rdkafka::producer::future_producer::OwnedDeliveryResult;
 use crate::enricher::EnrichedRecord;
 
 pub fn initialise_producer(config: &Config) -> FutureProducer {
@@ -30,10 +31,8 @@ pub async fn send_to_kafka(producer: &FutureProducer, config: &Config, payload: 
         Duration::from_secs(0),
     );
 
-    let timer = KAFKA_LATENCY.start_timer();
     match produce_future.await {
         Ok(..) => {
-            timer.observe_duration();
         }
         Err((e, _)) => error!("Error: {:?}", e),
     }

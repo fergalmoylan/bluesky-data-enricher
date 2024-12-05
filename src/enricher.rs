@@ -1,5 +1,5 @@
 use std::io::{Error, ErrorKind};
-use log::error;
+use log::{error, info};
 use rdkafka::Message;
 use rdkafka::message::OwnedMessage;
 use rust_bert::pipelines::keywords_extraction::{Keyword, KeywordExtractionModel};
@@ -105,18 +105,22 @@ impl EnrichedRecord {
         if let Some(payload) = record.payload() {
             match serde_json::from_slice::<EnrichedRecord>(payload) {
                 Ok(mut record) => {
-                    let text = record.text.clone();
-                    record.sentiment = Self::calculate_sentiment(text.as_str(), sentiment_model);
-                    record.named_entities = Self::calculate_ner(text.as_str(), ner_model);
-                    record.keywords = Self::calculate_keywords(text.as_str(), keyword_model);
-                    match serde_json::to_vec(&record) {
-                        Ok(_) => {
-                            Ok(record)
-                        },
-                        Err(e) => {
-                            error!("Error serializing record: {}", e);
-                            Err(Error::from(e))
-                        },
+                    if record.languages.contains(&String::from("English")) {
+                        let text = record.text.clone();
+                        record.sentiment = Self::calculate_sentiment(&text, sentiment_model);
+                        //record.named_entities = Self::calculate_ner(&text, ner_model);
+                        record.keywords = Self::calculate_keywords(text.as_str(), keyword_model);
+                        match serde_json::to_vec(&record) {
+                            Ok(_) => {
+                                Ok(record)
+                            },
+                            Err(e) => {
+                                error!("Error serializing record: {}", e);
+                                Err(Error::from(e))
+                            },
+                        }
+                    } else {
+                        Ok(record)
                     }
                 },
                 Err(e) => {
