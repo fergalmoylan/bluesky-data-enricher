@@ -3,8 +3,6 @@ use log::error;
 use crate::config::Config;
 use rdkafka::producer::{FutureProducer, FutureRecord};
 use rdkafka::ClientConfig;
-use rdkafka::config::RDKafkaLogLevel;
-use rdkafka::producer::future_producer::OwnedDeliveryResult;
 use crate::enricher::EnrichedRecord;
 
 pub fn initialise_producer(config: &Config) -> FutureProducer {

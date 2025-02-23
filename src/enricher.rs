@@ -1,30 +1,22 @@
 use std::io::{Error, ErrorKind};
-use log::{error, info};
+use log::error;
 use rdkafka::Message;
 use rdkafka::message::OwnedMessage;
 use rust_bert::pipelines::keywords_extraction::{Keyword, KeywordExtractionModel};
-use rust_bert::pipelines::ner::NERModel;
 use rust_bert::pipelines::sentiment::{SentimentModel, SentimentPolarity};
 use rust_bert::RustBertError;
 use serde::{Deserialize, Serialize};
+use vader_sentimental::SentimentIntensityAnalyzer;
 
 pub(crate) struct RustBertModels<'a> {
-    sentiment_model: SentimentModel,
-    ner_model: NERModel,
     keyword_model: KeywordExtractionModel<'a>,
 }
 
 impl RustBertModels<'_> {
     pub fn new() -> Self {
-        let sentiment_model = SentimentModel::new(Default::default())
-            .expect("Failed to create SentimentModel");
-        let ner_model = NERModel::new(Default::default())
-            .expect("Failed to create NERModel");
         let keyword_model = KeywordExtractionModel::new(Default::default())
             .expect("Failed to create KeywordExtractionModel");
         Self {
-            sentiment_model,
-            ner_model,
             keyword_model
         }
     }
@@ -66,49 +58,29 @@ impl EnrichedRecord {
         }
     }
 
-    fn calculate_ner(text: &str, model: &NERModel) -> Option<Vec<String>> {
-        let input = [text];
-        let output = model.predict(&input);
-
-        if let Some(entities) = output.first() {
-            Some(
-                entities
-                    .iter()
-                    .map(|entity| entity.word.clone())
-                    .collect(),
-            )
+    fn calculate_sentiment(text: &str, model: SentimentIntensityAnalyzer) -> Option<String> {
+        let input = text;
+        let output = model.polarity_scores(input);
+        let sentiment = if output.compound >= 0.05 {
+            "Positive"
+        } else if output.compound <= -0.05 {
+            "Negative"
         } else {
-            error!("No NER data available.");
-            None
-        }
-    }
+            "Neutral"
+        };
 
-    fn calculate_sentiment(text: &str, model: &SentimentModel) -> Option<String> {
-        let input = [text];
-        let output = model.predict(input);
-
-        if let Some(sentiment) = output.first() {
-            match sentiment.polarity {
-                SentimentPolarity::Positive => Some("Positive".to_string()),
-                SentimentPolarity::Negative => Some("Negative".to_string()),
-            }
-        } else {
-            error!("No sentiment data available.");
-            None
-        }
+        Some(sentiment.to_string())
     }
 
     pub fn enrich_record(record: OwnedMessage, models: &RustBertModels) -> Result<EnrichedRecord, Error> {
-        let sentiment_model = &models.sentiment_model;
-        let ner_model = &models.ner_model;
         let keyword_model = &models.keyword_model;
+        let sentiment_analyzer = SentimentIntensityAnalyzer::new();
         if let Some(payload) = record.payload() {
             match serde_json::from_slice::<EnrichedRecord>(payload) {
                 Ok(mut record) => {
                     if record.languages.contains(&String::from("English")) {
                         let text = record.text.clone();
-                        record.sentiment = Self::calculate_sentiment(&text, sentiment_model);
-                        //record.named_entities = Self::calculate_ner(&text, ner_model);
+                        record.sentiment = Self::calculate_sentiment(&text, sentiment_analyzer);
                         record.keywords = Self::calculate_keywords(text.as_str(), keyword_model);
                         match serde_json::to_vec(&record) {
                             Ok(_) => {
