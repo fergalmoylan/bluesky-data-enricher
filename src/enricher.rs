@@ -3,7 +3,6 @@ use log::error;
 use rdkafka::Message;
 use rdkafka::message::OwnedMessage;
 use rust_bert::pipelines::keywords_extraction::{Keyword, KeywordExtractionModel};
-use rust_bert::pipelines::sentiment::{SentimentModel, SentimentPolarity};
 use rust_bert::RustBertError;
 use serde::{Deserialize, Serialize};
 use vader_sentimental::SentimentIntensityAnalyzer;
@@ -30,8 +29,7 @@ pub(crate) struct EnrichedRecord {
     hashtags: Vec<String>,
     urls: Vec<String>,
     hostnames: Vec<String>,
-    sentiment: Option<String>,
-    named_entities: Option<Vec<String>>,
+    sentiment: Option<Vec<String>>,
     keywords: Option<Vec<String>>,
 }
 
@@ -58,7 +56,7 @@ impl EnrichedRecord {
         }
     }
 
-    fn calculate_sentiment(text: &str, model: SentimentIntensityAnalyzer) -> Option<String> {
+    fn calculate_sentiment(text: &str, model: SentimentIntensityAnalyzer) -> Option<Vec<String>> {
         let input = text;
         let output = model.polarity_scores(input);
         let sentiment = if output.compound >= 0.05 {
@@ -69,7 +67,7 @@ impl EnrichedRecord {
             "Neutral"
         };
 
-        Some(sentiment.to_string())
+        Some(vec![sentiment.to_string()])
     }
 
     pub fn enrich_record(record: OwnedMessage, models: &RustBertModels) -> Result<EnrichedRecord, Error> {
@@ -92,6 +90,8 @@ impl EnrichedRecord {
                             },
                         }
                     } else {
+                        record.sentiment = Some(Vec::new());
+                        record.keywords = Some(Vec::new());
                         Ok(record)
                     }
                 },
